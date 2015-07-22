@@ -34,26 +34,34 @@ bundle();
 
 function bundle () {
     var didError = false;
-    var outStream = process.platform === 'win32'
-        ? fs.createWriteStream(outfile)
-        : outpipe(outfile);
+    var outStream;
 
     var wb = w.bundle();
     wb.on('error', function (err) {
         console.error(String(err));
         didError = true;
+        prepareOutStream();
         outStream.end('console.error('+JSON.stringify(String(err))+');');
     });
-    wb.pipe(outStream);
+    wb.once('readable', function () {
+        prepareOutStream();
+        wb.pipe(outStream);
+    });
 
-    outStream.on('error', function (err) {
-        console.error(err);
-    });
-    outStream.on('close', function () {
-        if (verbose && !didError) {
-            console.error(bytes + ' bytes written to ' + outfile
-                + ' (' + (time / 1000).toFixed(2) + ' seconds)'
-            );
-        }
-    });
+    function prepareOutStream () {
+        if (outStream) return;
+        outStream = process.platform === 'win32'
+            ? fs.createWriteStream(outfile)
+            : outpipe(outfile);
+        outStream.on('error', function (err) {
+            console.error(err);
+        });
+        outStream.on('close', function () {
+            if (verbose && !didError) {
+                console.error(bytes + ' bytes written to ' + outfile
+                    + ' (' + (time / 1000).toFixed(2) + ' seconds)'
+                );
+            }
+        });
+    }
 }
