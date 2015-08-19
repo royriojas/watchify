@@ -17,7 +17,7 @@ function watchify (b, opts) {
     var changingDeps = {};
     var pending = false;
     var updating = false;
-    
+
     var wopts = {persistent: true};
     if (opts.ignoreWatch) {
         var ignored = opts.ignoreWatch !== true
@@ -35,7 +35,7 @@ function watchify (b, opts) {
         b.on('reset', collect);
         collect();
     }
-    
+
     function collect () {
         b.pipeline.get('deps').push(through.obj(function(row, enc, next) {
             var file = row.expose ? b._expose[row.id] : row.file;
@@ -43,31 +43,33 @@ function watchify (b, opts) {
                 source: row.source,
                 deps: xtend({}, row.deps)
             };
+            // needed in case the cache is persisted to disk and rehidrated
+            watchFile(file);
             this.push(row);
             next();
         }));
     }
-    
+
     b.on('file', function (file) {
         watchFile(file);
     });
-    
+
     b.on('package', function (pkg) {
         var file = path.join(pkg.__dirname, 'package.json');
         watchFile(file);
         if (pkgcache) pkgcache[file] = pkg;
     });
-    
+
     b.on('reset', reset);
     reset();
-    
+
     function reset () {
         var time = null;
         var bytes = 0;
         b.pipeline.get('record').on('end', function () {
             time = Date.now();
         });
-        
+
         b.pipeline.get('wrap').push(through(write, end));
         function write (buf, enc, next) {
             bytes += buf.length;
@@ -84,11 +86,11 @@ function watchify (b, opts) {
             this.push(null);
         }
     }
-    
+
     var fwatchers = {};
     var fwatcherFiles = {};
     var ignoredFiles = {};
-    
+
     b.on('transform', function (tr, mfile) {
         tr.on('file', function (dep) {
             watchFile(mfile, dep);
@@ -122,13 +124,13 @@ function watchify (b, opts) {
         fwatchers[file].push(w);
         fwatcherFiles[file].push(dep);
     }
-    
+
     function invalidate (id) {
         if (cache) delete cache[id];
         if (pkgcache) delete pkgcache[id];
         changingDeps[id] = true;
         if (updating) return;
-        
+
         if (fwatchers[id]) {
             fwatchers[id].forEach(function (w) {
                 w.close();
@@ -136,7 +138,7 @@ function watchify (b, opts) {
             delete fwatchers[id];
             delete fwatcherFiles[id];
         }
-        
+
         // wait for the disk/editor to quiet down first:
         if (!pending) setTimeout(function () {
             pending = false;
@@ -147,13 +149,13 @@ function watchify (b, opts) {
         }, delay);
         pending = true;
     }
-    
+
     b.close = function () {
         Object.keys(fwatchers).forEach(function (id) {
             fwatchers[id].forEach(function (w) { w.close() });
         });
     };
-    
+
     b._watcher = function (file, opts) {
         return chokidar.watch(file, opts);
     };
